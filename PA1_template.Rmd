@@ -1,25 +1,111 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
-  html_document:
-    keep_md: true
+html_document:
+keep_md: true
 ---
-
+##Library used in this document
+```{r library, echo=TRUE}
+library(lattice)
+```
 
 ## Loading and preprocessing the data
 
+```{r load_data, echo=TRUE}
+unzip(zipfile = "activity.zip", overwrite = TRUE)
+activity = read.csv2(file = "activity.csv", header = TRUE, sep = ",", colClasses = c("integer", "Date", "integer"))
+activity_no_NA = na.omit(activity)
+unlink("activity.csv", force = TRUE)
+```
 
+- Quick look in variable "activity":
+```{r activity_sumary}
+summary(activity)
+head(activity)
+```
+
+- Quick look in variable "activity_no_NA":
+```{r activity_no_NA_sumary}
+summary(activity_no_NA)
+head(activity_no_NA)
+```
 
 ## What is mean total number of steps taken per day?
 
+- The total number of steps taken per day: 
+```{r total_step, echo=TRUE}
+total_step_per_day = aggregate(x = activity_no_NA[c("steps", "interval")], FUN = sum, by = list(Group.date = activity_no_NA$date))
+head(total_step_per_day)
+```
 
+- Histogram of the total number of steps taken each day:
+```{r hist, echo=TRUE}
+hist(total_step_per_day[,2], main = "Histogram of Total Number of Steps Taken Each Day", xlab = "Total step each day")
+```
+
+- Mean and median of the total number of steps taken per day
+```{r total_step_per_day_sumary, echo=TRUE}
+print("Mean:")
+mean(total_step_per_day$steps)
+print("Median:")
+median(total_step_per_day$steps)
+```
 
 ## What is the average daily activity pattern?
-
+- Time series plot  of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis):
+```{r time_series_plot}
+average_steps = aggregate(steps~interval, data = activity_no_NA, mean)
+head(average_steps)
+plot(average_steps$interval, average_steps$steps, type="l", main = "Average Number of Steps Taken Across All Days", xlab = "5-minute interval", ylab = "Average number of step taken")
+```
 
 
 ## Imputing missing values
+- Total number of rows with NAs:
+```{r total_NAs_row, echo=TRUE}
+dim(activity)[1] - dim(activity_no_NA)[1]
+```
+- Filling in all of the missing values in the dataset using the mean for that 5-minute interval, and create new dataset 'activity_filled' that is equal to the original dataset but with the missing data filled in:
+```{r filling_NAs, echo=TRUE}
+activity_filled <- activity
+for(i in 1:dim(activity_filled)[1]){
+        if (is.na(activity_filled$steps[i])){
+                activity_filled$steps[i] <- average_steps[average_steps$interval == activity_filled$interval[i],2]
+        }
+}
+head(activity_filled)
+summary(activity_filled)
+```
 
+- Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day:
 
+```{r compare_filling_with_no_fill, echo=TRUE}
+total_step_per_day_filled = aggregate(x = activity_filled[c("steps", "interval")], FUN = sum, by = list(Group.date = activity_filled$date))
+par(mfrow = c(1,2))
+hist(total_step_per_day[,2], main = "Original Estimates", xlab = "Total step each day")
+hist(total_step_per_day_filled[,2], main = "Filling Estimates", xlab = "Total step each day")
+
+```
+
+```{r compare_mean_and_median, echo=TRUE}
+compare_table <- matrix(c(mean(total_step_per_day$steps),
+                  median(total_step_per_day$steps),
+                  mean(total_step_per_day_filled$steps),
+                  median(total_step_per_day_filled$steps)),
+                ncol=2,byrow=TRUE)
+
+colnames(compare_table) <- c("Mean","Median")
+rownames(compare_table) <- c("Original Estimates","Filling Estimates")
+as.table(compare_table)
+```
+
+- Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?: This strategy of filling missing value using the mean for that 5-minute interval apparently has no impact on changing the trend of data. However, it make the strong element become stronger and easier to notice.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r compare_weekdays_weekends, echo=TRUE}
+week_data <- activity_filled
+week_data$datefactor = factor(ifelse(weekdays(week_data$date) %in% c("Saturday", "Sunday"),"weekend","weekday"))
+average_steps_by_weekdays = aggregate(steps~interval + datefactor, data = week_data, mean)
+xyplot(average_steps_by_weekdays$steps ~ average_steps_by_weekdays$interval|average_steps_by_weekdays$datefactor, main="Average Number of Steps Taken Between Weekdays and Weekends",xlab="Interval", ylab="Steps",layout=c(1,2), type="l")
+```
